@@ -9,6 +9,7 @@ import SuperJSON from "superjson";
 
 import { type AppRouter } from "~/server/api/root";
 import { createQueryClient } from "./query-client";
+import { supabase } from "~/utils/supabaseClient";
 
 let clientQueryClientSingleton: QueryClient | undefined = undefined;
 const getQueryClient = () => {
@@ -52,9 +53,16 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
         httpBatchStreamLink({
           transformer: SuperJSON,
           url: getBaseUrl() + "/api/trpc",
-          headers: () => {
+          headers: async () => {
             const headers = new Headers();
             headers.set("x-trpc-source", "nextjs-react");
+            
+            // Add Supabase session token for authentication
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              headers.set("authorization", `Bearer ${session.access_token}`);
+            }
+            
             return headers;
           },
         }),

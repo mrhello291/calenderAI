@@ -3,18 +3,70 @@
 
 generator client {
     provider = "prisma-client-js"
+    previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
     provider = "postgresql"
     url      = env("DATABASE_URL")
+    directUrl = env("DIRECT_URL")
+    extensions = [vector]
 }
 
-model Post {
-    id        Int      @id @default(autoincrement())
-    name      String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+model users {
+    id    String   @id @default(uuid())
+    email String   @unique
+    name  String?
+    google_access_token String?
+    google_refresh_token String?
+    google_token_expires_at DateTime?
+    google_watch_resource_id String?
+    google_watch_expires_at DateTime?
+    events events[]
+}
 
-    @@index([name])
+model events {
+    id               String    @id                  // Google Event ID
+    user_id          String
+    title            String
+    description      String?
+    calendar_id      String?   @default("primary")
+    start_time       DateTime
+    end_time         DateTime
+    is_cancelled     Boolean   @default(false)
+    is_recurring     Boolean   @default(false)
+    recurrence       Json?                             // raw RRULE array
+    vector_embedding Unsupported("vector")?
+    updated_at       DateTime @updatedAt
+    created_at       DateTime @default(now())
+
+    user             users     @relation(fields: [user_id], references: [id])
+    instances        event_instances[]
+    attendees        attendees[]
+    tags             event_tags[]
+}
+
+model event_instances {
+    id                 String   @id @default(uuid())
+    event_id           String
+    occurrence_start   DateTime
+    occurrence_end     DateTime
+    vector_embedding   Unsupported("vector")?
+    event              events   @relation(fields: [event_id], references: [id])
+}
+
+model attendees {
+    event_id        String
+    email           String
+    response_status String
+    event           events   @relation(fields: [event_id], references: [id])
+
+    @@id([event_id, email])
+}
+
+model event_tags {
+    id       Int     @id @default(autoincrement())
+    event_id String
+    tag      String
+    event    events  @relation(fields: [event_id], references: [id])
 }
