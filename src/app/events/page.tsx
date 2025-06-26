@@ -36,6 +36,18 @@ export default function EventsPage() {
     }
   );
 
+  const { data: watchStatus, isLoading: watchLoading, refetch: refetchWatch } = api.calendar.getWatchStatus.useQuery(undefined, { enabled: !!user });
+
+  // Helper to determine if real-time sync is active
+  const isWatchActive = !!watchStatus?.google_watch_resource_id &&
+    !!watchStatus?.google_watch_channel_id &&
+    typeof watchStatus?.google_watch_expires_at === 'string' &&
+    new Date(watchStatus.google_watch_expires_at).getTime() > Date.now();
+
+  const watchExpiresSoon = isWatchActive &&
+    typeof watchStatus?.google_watch_expires_at === 'string' &&
+    (new Date(watchStatus.google_watch_expires_at).getTime() - Date.now() < 1000 * 60 * 60); // less than 1 hour
+
   const syncEventsMutation = api.calendar.syncEvents.useMutation({
     onSuccess: (data) => {
       setSyncMessage(`Successfully synced ${data.synced} events and removed ${data.deleted} old events.`);
@@ -167,7 +179,7 @@ export default function EventsPage() {
               <button 
                 onClick={handleSetupWatch}
                 disabled={setupWatchMutation.isPending}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                className={`bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center relative`}
               >
                 {setupWatchMutation.isPending ? (
                   <>
@@ -175,7 +187,19 @@ export default function EventsPage() {
                     Enabling...
                   </>
                 ) : (
-                  'Enable Real-Time Sync'
+                  <>
+                    Enable Real-Time Sync
+                    {watchLoading ? (
+                      <span className="ml-2 text-xs text-gray-200">Checking...</span>
+                    ) : isWatchActive ? (
+                      <span className={`ml-2 text-xs font-semibold ${watchExpiresSoon ? 'text-yellow-200' : 'text-green-200'}`}>Enabled{watchExpiresSoon ? ' (Expiring soon)' : ''}</span>
+                    ) : (
+                      <span className="ml-2 text-xs text-red-200 font-semibold">Disabled</span>
+                    )}
+                  </>
+                )}
+                {isWatchActive && typeof watchStatus?.google_watch_expires_at === 'string' && (
+                  <span className="absolute right-2 top-1 text-[10px] text-gray-100">Expires: {new Date(watchStatus.google_watch_expires_at).toLocaleTimeString()}</span>
                 )}
               </button>
             </div>

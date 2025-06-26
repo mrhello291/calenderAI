@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import type { PrismaClient } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 export class GoogleCalendarService {
   private calendar;
@@ -94,10 +95,11 @@ export class GoogleCalendarService {
   // Set up Google Calendar Watch API for real-time updates
   async setupWatch(userId: string, webhookUrl: string) {
     try {
+      const channelId = `calendar-watch-${userId}-${randomUUID()}`;
       const response = await this.calendar.events.watch({
         calendarId: 'primary',
         requestBody: {
-          id: `calendar-watch-${userId}`,
+          id: channelId,
           type: 'web_hook',
           address: webhookUrl,
           params: {
@@ -106,11 +108,12 @@ export class GoogleCalendarService {
         },
       });
 
-      // Store the watch resource ID for later cleanup
+      // Store the watch resource ID and channel ID for later cleanup
       await this.db.users.update({
         where: { id: userId },
         data: {
-          google_watch_resource_id: response.data.id,
+          google_watch_resource_id: response.data.resourceId,
+          google_watch_channel_id: channelId,
           google_watch_expires_at: new Date(response.data.expiration ?? ''),
         },
       });
@@ -127,19 +130,16 @@ export class GoogleCalendarService {
     try {
       const user = await this.db.users.findUnique({
         where: { id: userId },
-        select: { google_watch_resource_id: true },
+        select: { google_watch_resource_id: true, google_watch_channel_id: true },
       });
 
-      if (user?.google_watch_resource_id) {
-        // Note: Google Calendar Watch API doesn't have a direct stop method
-        // The watch will expire automatically after the TTL period
-        // We just clear our database records
-        
-        // Clear the watch resource ID
+      if (user?.google_watch_resource_id || user?.google_watch_channel_id) {
+        // Clear the watch resource ID and channel ID
         await this.db.users.update({
           where: { id: userId },
           data: {
             google_watch_resource_id: null,
+            google_watch_channel_id: null,
             google_watch_expires_at: null,
           },
         });

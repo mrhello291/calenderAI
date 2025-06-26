@@ -108,4 +108,17 @@ export const calendarRouter = createTRPCRouter({
         },
       });
     }),
+
+  // Get user's real-time sync (watch) status
+  getWatchStatus: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.db.users.findUnique({
+      where: { id: ctx.user.id },
+      select: {
+        google_watch_resource_id: true,
+        google_watch_channel_id: true,
+        google_watch_expires_at: true,
+      },
+    });
+    return user;
+  }),
 }); 
