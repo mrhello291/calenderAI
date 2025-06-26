@@ -31,6 +31,7 @@ model events {
     title            String
     description      String?
     calendar_id      String?   @default("primary")
+    google_resource_id String?                      // Google Calendar resource ID for webhook matching
     start_time       DateTime
     end_time         DateTime
     is_cancelled     Boolean   @default(false)

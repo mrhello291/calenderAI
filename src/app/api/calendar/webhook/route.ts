@@ -2,106 +2,89 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { db } from '~/server/db';
 import { GoogleCalendarService } from '~/server/google-calendar';
 
-interface WebhookChallenge {
-  type: 'webhook.challenge';
-  challenge: string;
-}
-
-interface WebhookCalendar {
-  type: 'webhook.calendar';
-  resourceId: string;
-  resourceUri: string;
-}
-
-type WebhookBody = WebhookChallenge | WebhookCalendar;
-
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔔 Webhook received:', new Date().toISOString());
-    console.log('Headers:', Object.fromEntries(request.headers.entries()));
-    
-    const body = await request.json() as WebhookBody;
-    console.log('Webhook body:', body);
-    
-    // Google Calendar webhook sends a challenge for verification
-    if (body.type === 'webhook.challenge') {
-      console.log('✅ Responding to webhook challenge');
-      return NextResponse.json({ challenge: body.challenge });
+    const headers = Object.fromEntries(request.headers.entries());
+    console.log("🔔 Webhook received:", new Date().toISOString());
+    console.log("Headers:", headers);
+
+    const resourceId = headers['x-goog-resource-id'];
+    const resourceUri = headers['x-goog-resource-uri'];
+    const channelId = headers['x-goog-channel-id'];
+    const messageNumber = headers['x-goog-message-number'];
+
+    console.log(`📅 Change detected on resource: ${resourceId} | Channel: ${channelId}`);
+
+    if (!resourceId || !channelId) {
+      console.error('❌ Missing required headers:', { resourceId, channelId });
+      return NextResponse.json({ error: 'Missing headers' }, { status: 400 });
     }
 
-    // Handle calendar change notifications
-    if (body.type === 'webhook.calendar') {
-      const { resourceId } = body;
-      console.log('📅 Calendar change notification for resourceId:', resourceId);
-      
-      // Extract user ID from resourceId (format: calendar-watch-{userId})
-      const userId = resourceId?.replace('calendar-watch-', '');
-      
-      if (!userId) {
-        console.error('❌ Invalid resourceId in webhook:', resourceId);
-        return NextResponse.json({ error: 'Invalid resourceId' }, { status: 400 });
+    // Find user by channel ID
+    const user = await db.users.findFirst({
+      where: { google_watch_channel_id: channelId },
+      select: {
+        id: true,
+        google_access_token: true,
+        google_refresh_token: true,
+        google_token_expires_at: true,
+      },
+    });
+
+    if (!user) {
+      console.error('❌ User not found for channel:', channelId);
+      return NextResponse.json({ error: 'User not found for this channel' }, { status: 404 });
+    }
+
+    console.log('👤 Processing webhook for user:', user.id);
+
+    if (!user.google_access_token) {
+      console.error('❌ No access token for user:', user.id);
+      return NextResponse.json({ error: 'No access token' }, { status: 401 });
+    }
+
+    // Check if token is expired and refresh if needed
+    let accessToken = user.google_access_token;
+    if (user.google_token_expires_at && user.google_token_expires_at < new Date()) {
+      if (!user.google_refresh_token) {
+        console.error('❌ Refresh token not available for user:', user.id);
+        return NextResponse.json({ error: 'Token expired' }, { status: 401 });
       }
 
-      console.log('👤 Processing webhook for user:', userId);
+      console.log('🔄 Refreshing access token for user:', user.id);
+      const credentials = await GoogleCalendarService.refreshAccessToken(user.google_refresh_token);
+      accessToken = credentials.access_token!;
 
-      // Get user's access token
-      const user = await db.users.findUnique({
-        where: { id: userId },
-        select: {
-          google_access_token: true,
-          google_refresh_token: true,
-          google_token_expires_at: true,
+      // Update tokens in database
+      await db.users.update({
+        where: { id: user.id },
+        data: {
+          google_access_token: accessToken,
+          google_token_expires_at: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
         },
       });
-
-      if (!user?.google_access_token) {
-        console.error('User not found or no access token:', userId);
-        return NextResponse.json({ error: 'User not found' }, { status: 404 });
-      }
-
-      // Check if token is expired and refresh if needed
-      let accessToken = user.google_access_token;
-      if (user.google_token_expires_at && user.google_token_expires_at < new Date()) {
-        if (!user.google_refresh_token) {
-          console.error('Refresh token not available for user:', userId);
-          return NextResponse.json({ error: 'Token expired' }, { status: 401 });
-        }
-
-        const credentials = await GoogleCalendarService.refreshAccessToken(user.google_refresh_token);
-        accessToken = credentials.access_token!;
-
-        // Update tokens in database
-        await db.users.update({
-          where: { id: userId },
-          data: {
-            google_access_token: accessToken,
-            google_token_expires_at: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
-          },
-        });
-      }
-
-      // Sync the user's calendar
-      const calendarService = new GoogleCalendarService(accessToken, db);
-      const result = await calendarService.syncEventsToDatabase(userId);
-
-      console.log(`Calendar sync completed for user ${userId}:`, result);
-      
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Calendar synced successfully',
-        result 
-      });
     }
 
-    // Unknown webhook type
-    console.warn('Unknown webhook type:', (body as { type: string }).type);
-    return NextResponse.json({ error: 'Unknown webhook type' }, { status: 400 });
+    // Sync the specific event that changed (most efficient)
+    console.log('🔄 Syncing specific event by resource ID for user:', user.id);
+    const calendarService = new GoogleCalendarService(accessToken, db);
+    const result = await calendarService.syncEventByResourceId(resourceId, user.id);
+
+    console.log(`✅ Calendar sync completed for user ${user.id}:`, result);
+    
+    // Return 200 OK quickly to prevent Google from dropping webhooks
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Calendar synced successfully',
+      result 
+    });
 
   } catch (error) {
-    console.error('Error processing calendar webhook:', error);
+    console.error('❌ Error processing calendar webhook:', error);
+    // Still return 200 OK to prevent Google from dropping future webhooks
     return NextResponse.json(
       { error: 'Internal server error' }, 
-      { status: 500 }
+      { status: 200 }
     );
   }
 }
