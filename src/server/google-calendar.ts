@@ -108,13 +108,24 @@ export class GoogleCalendarService {
         },
       });
 
-      // Store the watch resource ID and channel ID for later cleanup
+      // Log the response for debugging
+      console.log('Watch response:', response.data);
+
+      // Parse expiration safely
+      let expiration: Date | null = null;
+      if (response.data.expiration) {
+        const expNum = Number(response.data.expiration);
+        if (!isNaN(expNum)) {
+          expiration = new Date(expNum);
+        }
+      }
+
       await this.db.users.update({
         where: { id: userId },
         data: {
           google_watch_resource_id: response.data.resourceId,
           google_watch_channel_id: channelId,
-          google_watch_expires_at: new Date(response.data.expiration ?? ''),
+          google_watch_expires_at: expiration,
         },
       });
 
