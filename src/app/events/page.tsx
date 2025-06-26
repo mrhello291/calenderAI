@@ -41,11 +41,11 @@ export default function EventsPage() {
   // Helper to determine if real-time sync is active
   const isWatchActive = !!watchStatus?.google_watch_resource_id &&
     !!watchStatus?.google_watch_channel_id &&
-    typeof watchStatus?.google_watch_expires_at === 'string' &&
+    !!watchStatus?.google_watch_expires_at &&
     new Date(watchStatus.google_watch_expires_at).getTime() > Date.now();
 
   const watchExpiresSoon = isWatchActive &&
-    typeof watchStatus?.google_watch_expires_at === 'string' &&
+    !!watchStatus?.google_watch_expires_at &&
     (new Date(watchStatus.google_watch_expires_at).getTime() - Date.now() < 1000 * 60 * 60); // less than 1 hour
 
   const syncEventsMutation = api.calendar.syncEvents.useMutation({
@@ -166,7 +166,7 @@ export default function EventsPage() {
               {isWatchActive && (
                 <div className="flex items-center space-x-2 mb-1">
                   <span className={`text-xs font-semibold ${watchExpiresSoon ? 'text-yellow-600' : 'text-green-600'}`}>Real-Time Sync: Enabled</span>
-                  {typeof watchStatus?.google_watch_expires_at === 'string' && (() => {
+                  {watchStatus?.google_watch_expires_at && (() => {
                     const date = new Date(watchStatus.google_watch_expires_at);
                     return !isNaN(date.getTime()) ? (
                       <span className="text-[10px] text-gray-600">(Expires: {date.toLocaleTimeString()})</span>
@@ -215,7 +215,7 @@ export default function EventsPage() {
                 {isWatchActive && (
                   (() => {
                     let expiresText = 'Expires: Unknown';
-                    if (typeof watchStatus?.google_watch_expires_at === 'string') {
+                    if (watchStatus?.google_watch_expires_at) {
                       const date = new Date(watchStatus.google_watch_expires_at);
                       if (!isNaN(date.getTime())) {
                         expiresText = `Expires: ${date.toLocaleTimeString()}`;
