@@ -8,7 +8,7 @@ export default function AuthUI() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/auth/callback`,
         scopes: 'https://www.googleapis.com/auth/calendar.readonly openid profile email',
       },
     });

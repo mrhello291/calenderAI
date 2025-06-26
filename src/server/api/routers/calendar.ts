@@ -58,7 +58,7 @@ export const calendarRouter = createTRPCRouter({
     }
 
     const calendarService = new GoogleCalendarService(user.google_access_token, ctx.db);
-    const webhookUrl = `${process.env.NEXTAUTH_URL ?? 'http://localhost:3000'}/api/calendar/webhook`;
+    const webhookUrl = `${process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL}/api/calendar/webhook`;
     
     return await calendarService.setupWatch(ctx.user.id, webhookUrl);
   }),
