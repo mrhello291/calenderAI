@@ -37,7 +37,8 @@ export default function EventsPage() {
   );
 
   const { data: watchStatus, isLoading: watchLoading, refetch: refetchWatch } = api.calendar.getWatchStatus.useQuery(undefined, { enabled: !!user });
-
+  
+  console.log(watchStatus);
   // Helper to determine if real-time sync is active
   const isWatchActive = !!watchStatus?.google_watch_resource_id &&
     !!watchStatus?.google_watch_channel_id &&
@@ -169,7 +170,7 @@ export default function EventsPage() {
                   {watchStatus?.google_watch_expires_at && (() => {
                     const date = new Date(watchStatus.google_watch_expires_at);
                     return !isNaN(date.getTime()) ? (
-                      <span className="text-[10px] text-gray-600">(Expires: {date.toLocaleTimeString()})</span>
+                      <span className="text-[10px] text-gray-600">(Expires: {date.toLocaleString()})</span>
                     ) : (
                       <span className="text-[10px] text-gray-600">(Expires: Unknown)</span>
                     );
@@ -192,7 +193,7 @@ export default function EventsPage() {
               </button>
               <button 
                 onClick={handleSetupWatch}
-                disabled={setupWatchMutation.isPending}
+                disabled={setupWatchMutation.isPending || isWatchActive}
                 className={`bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center relative`}
               >
                 {setupWatchMutation.isPending ? (
@@ -212,7 +213,7 @@ export default function EventsPage() {
                     )}
                   </>
                 )}
-                {isWatchActive && (
+                {/* {isWatchActive && (
                   (() => {
                     let expiresText = 'Expires: Unknown';
                     if (watchStatus?.google_watch_expires_at) {
@@ -225,7 +226,7 @@ export default function EventsPage() {
                       <span className="absolute right-2 top-1 text-[10px] text-gray-100">{expiresText}</span>
                     );
                   })()
-                )}
+                )} */}
               </button>
             </div>
           </div>
