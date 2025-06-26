@@ -89,6 +89,18 @@ export default function EventsPage() {
     },
   });
 
+  const stopWatchMutation = api.calendar.stopWatch.useMutation({
+    onSuccess: () => {
+      setSyncMessage("Real-time sync disabled successfully.");
+      setTimeout(() => setSyncMessage(""), 5000);
+      void refetchWatch(); // Refresh watch status
+    },
+    onError: (error) => {
+      setSyncMessage(`Error disabling real-time sync: ${error.message}`);
+      setTimeout(() => setSyncMessage(""), 5000);
+    },
+  });
+
   useEffect(() => {
     if (eventsData) {
       setEvents(eventsData);
@@ -104,6 +116,11 @@ export default function EventsPage() {
   const handleSetupWatch = () => {
     setSyncMessage("Enabling real-time sync...");
     setupWatchMutation.mutate();
+  };
+
+  const handleStopWatch = () => {
+    setSyncMessage("Disabling real-time sync...");
+    stopWatchMutation.mutate();
   };
 
   // Organize events by year, month, and day
@@ -243,6 +260,21 @@ export default function EventsPage() {
                     </>
                   ) : (
                     'Enable Real-Time Sync'
+                  )}
+                </Button>
+                <Button 
+                  onClick={handleStopWatch}
+                  disabled={stopWatchMutation.isPending || !isWatchActive}
+                  variant="destructive"
+                  size="sm"
+                >
+                  {stopWatchMutation.isPending ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
+                      Disabling...
+                    </>
+                  ) : (
+                    'Disable Real-Time Sync'
                   )}
                 </Button>
               </div>
