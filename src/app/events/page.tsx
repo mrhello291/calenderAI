@@ -2,6 +2,16 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../_components/AuthProvider";
 import { api } from "~/trpc/react";
+import { Button } from "~/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "~/components/ui/dialog";
+import { Calendar, Clock, Users, Tag, MapPin } from "lucide-react";
 
 interface Event {
   id: string;
@@ -21,11 +31,17 @@ interface Event {
   }>;
 }
 
+type OrganizedEvents = Record<
+  string,
+  Record<string, Record<string, Event[]>>
+>;
+
 export default function EventsPage() {
   const { user, loading } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [syncMessage, setSyncMessage] = useState<string>("");
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   const { data: eventsData, isLoading: eventsLoading, refetch } = api.calendar.getEvents.useQuery(
     {
@@ -65,6 +81,7 @@ export default function EventsPage() {
     onSuccess: (data) => {
       setSyncMessage(`Real-time sync enabled! Watch expires at: ${new Date(data.expiration ?? '').toLocaleString()}`);
       setTimeout(() => setSyncMessage(""), 5000);
+      void refetchWatch(); // Refresh watch status
     },
     onError: (error) => {
       setSyncMessage(`Error enabling real-time sync: ${error.message}`);
@@ -89,6 +106,53 @@ export default function EventsPage() {
     setupWatchMutation.mutate();
   };
 
+  // Organize events by year, month, and day
+  const organizeEvents = (events: Event[]): OrganizedEvents => {
+    const organized: OrganizedEvents = {};
+    
+    events.forEach(event => {
+      const startDate = new Date(event.start_time);
+      const year = startDate.getFullYear().toString();
+      const month = startDate.toLocaleString('default', { month: 'long' });
+      const day = startDate.getDate().toString();
+
+      (organized[year] ??= {});
+      (organized[year][month] ??= {});
+      (organized[year][month][day] ??= []);
+      organized[year][month][day].push(event);
+    });
+    return organized;
+  };
+
+  const formatTime = (date: Date) => {
+    return new Date(date).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatDate = (date: Date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const getEventStatusColor = (event: Event) => {
+    if (event.is_cancelled) return 'bg-red-100 text-red-800 border-red-200';
+    if (event.is_recurring) return 'bg-blue-100 text-blue-800 border-blue-200';
+    return 'bg-green-100 text-green-800 border-green-200';
+  };
+
+  const getEventStatusText = (event: Event) => {
+    if (event.is_cancelled) return 'Cancelled';
+    if (event.is_recurring) return 'Recurring';
+    return 'Confirmed';
+  };
+
   if (loading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -110,43 +174,16 @@ export default function EventsPage() {
     );
   }
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(date));
-  };
-
-  const formatTime = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(date));
-  };
-
-  const getEventStatusColor = (event: Event) => {
-    if (event.is_cancelled) return 'bg-red-100 text-red-800';
-    if (event.is_recurring) return 'bg-blue-100 text-blue-800';
-    return 'bg-green-100 text-green-800';
-  };
-
-  const getEventStatusText = (event: Event) => {
-    if (event.is_cancelled) return 'Cancelled';
-    if (event.is_recurring) return 'Recurring';
-    return 'Confirmed';
-  };
+  const organizedEvents = organizeEvents(events);
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">My Events</h1>
+              <h1 className="text-3xl font-bold text-gray-900">My Calendar</h1>
               <p className="mt-1 text-sm text-gray-500">
                 {events.length} upcoming event{events.length !== 1 ? 's' : ''}
               </p>
@@ -177,70 +214,49 @@ export default function EventsPage() {
                   })()}
                 </div>
               )}
-              <button 
-                onClick={handleSyncCalendar}
-                disabled={syncEventsMutation.isPending}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-              >
-                {syncEventsMutation.isPending ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Syncing...
-                  </>
-                ) : (
-                  'Sync Calendar'
-                )}
-              </button>
-              <button 
-                onClick={handleSetupWatch}
-                disabled={setupWatchMutation.isPending || isWatchActive}
-                className={`bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center relative`}
-              >
-                {setupWatchMutation.isPending ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Enabling...
-                  </>
-                ) : (
-                  <>
-                    Enable Real-Time Sync
-                    {watchLoading ? (
-                      <span className="ml-2 text-xs text-gray-200">Checking...</span>
-                    ) : isWatchActive ? (
-                      <span className={`ml-2 text-xs font-semibold ${watchExpiresSoon ? 'text-yellow-200' : 'text-green-200'}`}>Enabled{watchExpiresSoon ? ' (Expiring soon)' : ''}</span>
-                    ) : (
-                      <span className="ml-2 text-xs text-red-200 font-semibold">Disabled</span>
-                    )}
-                  </>
-                )}
-                {/* {isWatchActive && (
-                  (() => {
-                    let expiresText = 'Expires: Unknown';
-                    if (watchStatus?.google_watch_expires_at) {
-                      const date = new Date(watchStatus.google_watch_expires_at);
-                      if (!isNaN(date.getTime())) {
-                        expiresText = `Expires: ${date.toLocaleTimeString()}`;
-                      }
-                    }
-                    return (
-                      <span className="absolute right-2 top-1 text-[10px] text-gray-100">{expiresText}</span>
-                    );
-                  })()
-                )} */}
-              </button>
+              <div className="flex space-x-2">
+                <Button 
+                  onClick={handleSyncCalendar}
+                  disabled={syncEventsMutation.isPending}
+                  variant="outline"
+                  size="sm"
+                >
+                  {syncEventsMutation.isPending ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                      Syncing...
+                    </>
+                  ) : (
+                    'Sync Calendar'
+                  )}
+                </Button>
+                <Button 
+                  onClick={handleSetupWatch}
+                  disabled={setupWatchMutation.isPending || isWatchActive}
+                  variant="default"
+                  size="sm"
+                >
+                  {setupWatchMutation.isPending ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Enabling...
+                    </>
+                  ) : (
+                    'Enable Real-Time Sync'
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Events List */}
+      {/* Calendar View */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {events.length === 0 ? (
           <div className="text-center py-12">
             <div className="mx-auto h-12 w-12 text-gray-400">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+              <Calendar className="h-12 w-12" />
             </div>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No events</h3>
             <p className="mt-1 text-sm text-gray-500">
@@ -248,106 +264,136 @@ export default function EventsPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => (
-              <div
-                key={event.id}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-              >
-                <div className="p-6">
-                  {/* Event Header */}
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">
-                      {event.title}
+          <div className="space-y-8">
+            {Object.keys(organizedEvents).sort().map(year => (
+              <div key={year} className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-900 border-b border-gray-200 pb-2">
+                  {year}
+                </h2>
+                {Object.keys(organizedEvents[year] ?? {}).sort((a, b) => {
+                  const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                 'July', 'August', 'September', 'October', 'November', 'December'];
+                  return months.indexOf(a) - months.indexOf(b);
+                }).map(month => (
+                  <div key={month} className="space-y-4">
+                    <h3 className="text-xl font-semibold text-gray-800 ml-4">
+                      {month}
                     </h3>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEventStatusColor(event)}`}>
-                      {getEventStatusText(event)}
-                    </span>
+                    {Object.keys(organizedEvents[year]?.[month] ?? {}).sort((a, b) => parseInt(a) - parseInt(b)).map(day => (
+                      <div key={day} className="space-y-3">
+                        <h4 className="text-lg font-medium text-gray-700 ml-8">
+                          {day} {new Date(parseInt(year), 0, parseInt(day)).toLocaleDateString('en-US', { weekday: 'short' })}
+                        </h4>
+                        <div className="space-y-2 ml-12">
+                          {organizedEvents[year]?.[month]?.[day]?.map(event => (
+                            <Dialog key={event.id}>
+                              <DialogTrigger asChild>
+                                <div 
+                                  className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+                                  onClick={() => setSelectedEvent(event)}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-2 mb-2">
+                                        <h5 className="font-medium text-gray-900">{event.title}</h5>
+                                        <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getEventStatusColor(event)}`}>
+                                          {getEventStatusText(event)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center text-sm text-gray-600 space-x-4">
+                                        <div className="flex items-center">
+                                          <Clock className="h-4 w-4 mr-1" />
+                                          {formatTime(event.start_time)} - {formatTime(event.end_time)}
+                                        </div>
+                                        {event.attendees.length > 0 && (
+                                          <div className="flex items-center">
+                                            <Users className="h-4 w-4 mr-1" />
+                                            {event.attendees.length} attendee{event.attendees.length !== 1 ? 's' : ''}
+                                          </div>
+                                        )}
+                                        {event.tags.length > 0 && (
+                                          <div className="flex items-center">
+                                            <Tag className="h-4 w-4 mr-1" />
+                                            {event.tags.length} tag{event.tags.length !== 1 ? 's' : ''}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-2xl">
+                                <DialogHeader>
+                                  <DialogTitle className="text-xl">{event.title}</DialogTitle>
+                                  <DialogDescription>
+                                    {formatDate(event.start_time)}
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                    <Clock className="h-4 w-4" />
+                                    <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
+                                  </div>
+                                  
+                                  {event.description && (
+                                    <div>
+                                      <h4 className="font-medium text-gray-900 mb-2">Description</h4>
+                                      <p className="text-gray-700 whitespace-pre-wrap">{event.description}</p>
+                                    </div>
+                                  )}
+                                  
+                                  {event.attendees.length > 0 && (
+                                    <div>
+                                      <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                                        <Users className="h-4 w-4 mr-2" />
+                                        Attendees ({event.attendees.length})
+                                      </h4>
+                                      <div className="space-y-1">
+                                        {event.attendees.map((attendee, index) => (
+                                          <div key={index} className="flex items-center justify-between text-sm">
+                                            <span className="text-gray-700">{attendee.email}</span>
+                                            <span className={`px-2 py-1 text-xs rounded-full ${
+                                              attendee.response_status === 'accepted' ? 'bg-green-100 text-green-800' :
+                                              attendee.response_status === 'declined' ? 'bg-red-100 text-red-800' :
+                                              'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                              {attendee.response_status}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {event.tags.length > 0 && (
+                                    <div>
+                                      <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                                        <Tag className="h-4 w-4 mr-2" />
+                                        Tags ({event.tags.length})
+                                      </h4>
+                                      <div className="flex flex-wrap gap-2">
+                                        {event.tags.map((tag, index) => (
+                                          <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                            {tag.tag}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                    <MapPin className="h-4 w-4" />
+                                    <span>Calendar: {event.calendar_id ?? 'Primary'}</span>
+                                  </div>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-
-                  {/* Event Time */}
-                  <div className="mb-4">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <svg className="flex-shrink-0 mr-1.5 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {formatDate(event.start_time)}
-                    </div>
-                    {event.start_time.toDateString() !== event.end_time.toDateString() && (
-                      <div className="flex items-center text-sm text-gray-600 mt-1">
-                        <span className="mr-2">to</span>
-                        {formatDate(event.end_time)}
-                      </div>
-                    )}
-                    {event.start_time.toDateString() === event.end_time.toDateString() && (
-                      <div className="text-sm text-gray-500 mt-1">
-                        {formatTime(event.start_time)} - {formatTime(event.end_time)}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Event Description */}
-                  {event.description && (
-                    <div className="mb-4">
-                      <p className="text-sm text-gray-600 line-clamp-3">
-                        {event.description}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Event Tags */}
-                  {event.tags.length > 0 && (
-                    <div className="mb-4">
-                      <div className="flex flex-wrap gap-1">
-                        {event.tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800"
-                          >
-                            {tag.tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Event Attendees */}
-                  {event.attendees.length > 0 && (
-                    <div className="mb-4">
-                      <div className="flex items-center text-sm text-gray-600 mb-2">
-                        <svg className="flex-shrink-0 mr-1.5 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                        {event.attendees.length} attendee{event.attendees.length !== 1 ? 's' : ''}
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {event.attendees.slice(0, 3).map((attendee, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800"
-                          >
-                            {attendee.email}
-                          </span>
-                        ))}
-                        {event.attendees.length > 3 && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
-                            +{event.attendees.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Calendar Source */}
-                  {event.calendar_id && event.calendar_id !== 'primary' && (
-                    <div className="flex items-center text-xs text-gray-500">
-                      <svg className="flex-shrink-0 mr-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      {event.calendar_id}
-                    </div>
-                  )}
-                </div>
+                ))}
               </div>
             ))}
           </div>
