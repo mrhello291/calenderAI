@@ -121,11 +121,12 @@ export class GoogleCalendarService {
         }
       }
 
+      // Store the channel ID that Google returned, not the one we generated
       await this.db.users.update({
         where: { id: userId },
         data: {
           google_watch_resource_id: response.data.resourceId,
-          google_watch_channel_id: channelId,
+          google_watch_channel_id: response.data.id, // Use Google's returned channel ID
           google_watch_expires_at: expiration,
         },
       });
