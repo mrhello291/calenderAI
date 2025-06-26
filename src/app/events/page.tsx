@@ -48,6 +48,17 @@ export default function EventsPage() {
     },
   });
 
+  const setupWatchMutation = api.calendar.setupWatch.useMutation({
+    onSuccess: (data) => {
+      setSyncMessage(`Real-time sync enabled! Watch expires at: ${new Date(data.expiration ?? '').toLocaleString()}`);
+      setTimeout(() => setSyncMessage(""), 5000);
+    },
+    onError: (error) => {
+      setSyncMessage(`Error enabling real-time sync: ${error.message}`);
+      setTimeout(() => setSyncMessage(""), 5000);
+    },
+  });
+
   useEffect(() => {
     if (eventsData) {
       setEvents(eventsData);
@@ -58,6 +69,11 @@ export default function EventsPage() {
   const handleSyncCalendar = () => {
     setSyncMessage("Syncing calendar...");
     syncEventsMutation.mutate();
+  };
+
+  const handleSetupWatch = () => {
+    setSyncMessage("Enabling real-time sync...");
+    setupWatchMutation.mutate();
   };
 
   if (loading || isLoading) {
@@ -146,6 +162,20 @@ export default function EventsPage() {
                   </>
                 ) : (
                   'Sync Calendar'
+                )}
+              </button>
+              <button 
+                onClick={handleSetupWatch}
+                disabled={setupWatchMutation.isPending}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {setupWatchMutation.isPending ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Enabling...
+                  </>
+                ) : (
+                  'Enable Real-Time Sync'
                 )}
               </button>
             </div>

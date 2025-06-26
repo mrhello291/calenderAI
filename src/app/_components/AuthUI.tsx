@@ -4,18 +4,24 @@ import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "~/utils/supabaseClient";
 
 export default function AuthUI() {
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly openid profile email',
+      },
+    });
+  };
+
   return (
     <div className="flex h-fit w-fit items-center justify-center">
-      <Auth
-        supabaseClient={supabase}
-        appearance={{ theme: ThemeSupa }}
-        theme="dark"
-        providers={["google"]}
-        onlyThirdPartyProviders
-        providerScopes={{
-          google: "https://www.googleapis.com/auth/calendar.readonly openid profile email",
-        }}
-      />
+      <button
+        onClick={handleLogin}
+        className="w-full py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+      >
+        Sign in with Google
+      </button>
     </div>
   );
 } 

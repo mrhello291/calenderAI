@@ -1,10 +1,10 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../_components/AuthProvider";
 import AuthUI from "../_components/AuthUI";
 
-export default function LoginPage() {
+function LoginPageInner() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -28,4 +28,12 @@ export default function LoginPage() {
       </div>
     </div>
   );
-} 
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}

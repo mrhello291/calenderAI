@@ -5,6 +5,8 @@ import { GoogleCalendarService } from "~/server/google-calendar";
 export const calendarRouter = createTRPCRouter({
   // Sync user's Google Calendar events
   syncEvents: protectedProcedure.mutation(async ({ ctx }) => {
+    console.log('Checking Google tokens for user:', ctx.user.id);
+    
     const user = await ctx.db.users.findUnique({
       where: { id: ctx.user.id },
       select: {
@@ -13,6 +15,8 @@ export const calendarRouter = createTRPCRouter({
         google_token_expires_at: true,
       },
     });
+
+    console.log('User record found:', !!user, 'Has access token:', !!user?.google_access_token);
 
     if (!user?.google_access_token) {
       throw new Error("Google Calendar not connected");
