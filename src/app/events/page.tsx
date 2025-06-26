@@ -162,6 +162,20 @@ export default function EventsPage() {
                   {syncMessage}
                 </div>
               )}
+              {/* Real-time sync status and expiration */}
+              {isWatchActive && (
+                <div className="flex items-center space-x-2 mb-1">
+                  <span className={`text-xs font-semibold ${watchExpiresSoon ? 'text-yellow-600' : 'text-green-600'}`}>Real-Time Sync: Enabled</span>
+                  {typeof watchStatus?.google_watch_expires_at === 'string' && (() => {
+                    const date = new Date(watchStatus.google_watch_expires_at);
+                    return !isNaN(date.getTime()) ? (
+                      <span className="text-[10px] text-gray-600">(Expires: {date.toLocaleTimeString()})</span>
+                    ) : (
+                      <span className="text-[10px] text-gray-600">(Expires: Unknown)</span>
+                    );
+                  })()}
+                </div>
+              )}
               <button 
                 onClick={handleSyncCalendar}
                 disabled={syncEventsMutation.isPending}
@@ -198,8 +212,19 @@ export default function EventsPage() {
                     )}
                   </>
                 )}
-                {isWatchActive && typeof watchStatus?.google_watch_expires_at === 'string' && (
-                  <span className="absolute right-2 top-1 text-[10px] text-gray-100">Expires: {new Date(watchStatus.google_watch_expires_at).toLocaleTimeString()}</span>
+                {isWatchActive && (
+                  (() => {
+                    let expiresText = 'Expires: Unknown';
+                    if (typeof watchStatus?.google_watch_expires_at === 'string') {
+                      const date = new Date(watchStatus.google_watch_expires_at);
+                      if (!isNaN(date.getTime())) {
+                        expiresText = `Expires: ${date.toLocaleTimeString()}`;
+                      }
+                    }
+                    return (
+                      <span className="absolute right-2 top-1 text-[10px] text-gray-100">{expiresText}</span>
+                    );
+                  })()
                 )}
               </button>
             </div>
