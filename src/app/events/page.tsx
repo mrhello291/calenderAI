@@ -231,6 +231,10 @@ export default function EventsPage() {
                   })()}
                 </div>
               )}
+              {/* Help text for authentication issues */}
+              <div className="text-xs text-gray-500 mb-2 max-w-xs text-right">
+                💡 If real-time sync fails, try signing out and back in to refresh your Google tokens.
+              </div>
               <div className="flex space-x-2">
                 <Button 
                   onClick={handleSyncCalendar}

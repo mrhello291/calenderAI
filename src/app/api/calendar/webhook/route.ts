@@ -17,24 +17,32 @@ type WebhookBody = WebhookChallenge | WebhookCalendar;
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔔 Webhook received:', new Date().toISOString());
+    console.log('Headers:', Object.fromEntries(request.headers.entries()));
+    
     const body = await request.json() as WebhookBody;
+    console.log('Webhook body:', body);
     
     // Google Calendar webhook sends a challenge for verification
     if (body.type === 'webhook.challenge') {
+      console.log('✅ Responding to webhook challenge');
       return NextResponse.json({ challenge: body.challenge });
     }
 
     // Handle calendar change notifications
     if (body.type === 'webhook.calendar') {
       const { resourceId } = body;
+      console.log('📅 Calendar change notification for resourceId:', resourceId);
       
       // Extract user ID from resourceId (format: calendar-watch-{userId})
       const userId = resourceId?.replace('calendar-watch-', '');
       
       if (!userId) {
-        console.error('Invalid resourceId in webhook:', resourceId);
+        console.error('❌ Invalid resourceId in webhook:', resourceId);
         return NextResponse.json({ error: 'Invalid resourceId' }, { status: 400 });
       }
+
+      console.log('👤 Processing webhook for user:', userId);
 
       // Get user's access token
       const user = await db.users.findUnique({
