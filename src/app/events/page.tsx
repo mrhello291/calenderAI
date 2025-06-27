@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "../_components/AuthProvider";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
@@ -42,6 +42,7 @@ export default function EventsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [syncMessage, setSyncMessage] = useState<string>("");
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const hasAutoSynced = useRef(false);
 
   const { data: eventsData, isLoading: eventsLoading, refetch } = api.calendar.getEvents.useQuery(
     {
@@ -107,6 +108,15 @@ export default function EventsPage() {
       setIsLoading(false);
     }
   }, [eventsData]);
+
+  // Auto-sync calendar when page loads (only once per session)
+  useEffect(() => {
+    if (user && !isLoading && eventsData !== undefined && !hasAutoSynced.current) {
+      console.log('🔄 Auto-syncing calendar on page load...');
+      hasAutoSynced.current = true;
+      syncEventsMutation.mutate();
+    }
+  }, [user, isLoading, eventsData, syncEventsMutation]);
 
   const handleSyncCalendar = () => {
     setSyncMessage("Syncing calendar...");

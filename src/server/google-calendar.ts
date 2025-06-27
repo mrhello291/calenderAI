@@ -93,6 +93,8 @@ export class GoogleCalendarService {
   async setupWatch(userId: string, webhookUrl: string) {
     try {
       const channelId = `calendar-watch-${userId}-${randomUUID()}`;
+      console.log('🔧 Generated channel ID:', channelId);
+      
       const response = await this.calendar.events.watch({
         calendarId: 'primary',
         requestBody: {
@@ -107,6 +109,8 @@ export class GoogleCalendarService {
 
       // Log the response for debugging
       console.log('Watch response:', response.data);
+      console.log('🔧 Google returned channel ID:', response.data.id);
+      console.log('🔧 Storing channel ID:', response.data.id);
 
       // Parse expiration safely
       let expiration: Date | null = null;
