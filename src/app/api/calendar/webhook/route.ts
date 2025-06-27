@@ -8,16 +8,14 @@ export async function POST(request: NextRequest) {
     console.log("🔔 Webhook received:", new Date().toISOString());
     console.log("Headers:", headers);
 
-    const resourceId = headers['x-goog-resource-id'];
-    const resourceUri = headers['x-goog-resource-uri'];
     const channelId = headers['x-goog-channel-id'];
-    const messageNumber = headers['x-goog-message-number'];
+    const resourceId = headers['x-goog-resource-id'];
 
     console.log(`📅 Change detected on resource: ${resourceId} | Channel: ${channelId}`);
 
-    if (!resourceId || !channelId) {
-      console.error('❌ Missing required headers:', { resourceId, channelId });
-      return NextResponse.json({ error: 'Missing headers' }, { status: 400 });
+    if (!channelId) {
+      console.error('❌ Missing channel ID header');
+      return NextResponse.json({ error: 'Missing channel ID' }, { status: 400 });
     }
 
     // Find user by channel ID
@@ -65,10 +63,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Sync the specific event that changed (most efficient)
-    console.log('🔄 Syncing specific event by resource ID for user:', user.id);
+    // Perform full sync when webhook is received
+    console.log('🔄 Performing full sync for user:', user.id);
     const calendarService = new GoogleCalendarService(accessToken, db);
-    const result = await calendarService.syncEventByResourceId(resourceId, user.id);
+    const result = await calendarService.syncEventsToDatabase(user.id);
 
     console.log(`✅ Calendar sync completed for user ${user.id}:`, result);
     
